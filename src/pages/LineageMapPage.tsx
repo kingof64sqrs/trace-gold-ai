@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Satellite, Cog, Shield, Star, Circle, AlertTriangle, X, Info } from "lucide-react";
+import { Satellite, Cog, Shield, Star, Circle, AlertTriangle } from "lucide-react";
 import AssetInspector from "@/components/lineage/AssetInspector";
 
-interface Node {
+interface NodeData {
   id: string;
   label: string;
   tier: "source" | "processing" | "regulatory" | "financial" | "analytics";
@@ -17,33 +17,31 @@ interface Edge {
   type: "realtime" | "compliance" | "migration" | "drift" | "broken";
 }
 
-const nodes: Node[] = [
-  // Sources
-  { id: "globex-mdp", label: "CME Globex MDP 3.0", tier: "source", x: 40, y: 60 },
-  { id: "brokertec", label: "BrokerTec Fixed Income", tier: "source", x: 40, y: 140 },
-  { id: "ebs", label: "EBS FX Feed", tier: "source", x: 40, y: 220 },
-  { id: "clearport", label: "ClearPort OTC", tier: "source", x: 40, y: 300 },
-  { id: "ext-reports", label: "Market Participant Reports", tier: "source", x: 40, y: 380 },
-  { id: "snowflake", label: "Snowflake Data Warehouse", tier: "source", x: 40, y: 460 },
-  // Processing
-  { id: "matching", label: "Trade Matching Engine", tier: "processing", x: 280, y: 80 },
-  { id: "span", label: "SPAN Margin Engine", tier: "processing", x: 280, y: 160 },
-  { id: "settlement", label: "Settlement Price Engine", tier: "processing", x: 280, y: 240 },
-  { id: "position-agg", label: "Position Aggregation", tier: "processing", x: 280, y: 320 },
-  { id: "normalization", label: "Data Normalization", tier: "processing", x: 280, y: 400 },
-  { id: "gcp", label: "Google Cloud Platform", tier: "processing", x: 280, y: 480 },
-  // Regulatory
-  { id: "cftc-17", label: "CFTC Part 17 Report", tier: "regulatory", x: 530, y: 80 },
-  { id: "sdr", label: "CME SDR Repository", tier: "regulatory", x: 530, y: 160 },
-  { id: "fcm-seg", label: "FCM Segregation Report", tier: "regulatory", x: 530, y: 240 },
-  { id: "cm-capital", label: "Clearing Member Capital", tier: "regulatory", x: 530, y: 320 },
-  // Financial
-  { id: "clearing-rev", label: "Clearing Revenue ($4.99B)", tier: "financial", x: 760, y: 100 },
-  { id: "mktdata-rev", label: "Market Data Revenue ($710M)", tier: "financial", x: 760, y: 200 },
-  { id: "total-rev", label: "Total Revenue ($6.13B)", tier: "financial", x: 760, y: 300 },
-  // Analytics
-  { id: "datamine", label: "CME DataMine", tier: "analytics", x: 530, y: 420 },
-  { id: "fedwatch", label: "FedWatch API", tier: "analytics", x: 530, y: 500 },
+const NODE_W = 170;
+const NODE_H = 32;
+
+const nodes: NodeData[] = [
+  { id: "globex-mdp", label: "CME Globex MDP 3.0", tier: "source", x: 30, y: 40 },
+  { id: "brokertec", label: "BrokerTec Fixed Income", tier: "source", x: 30, y: 110 },
+  { id: "ebs", label: "EBS FX Feed", tier: "source", x: 30, y: 180 },
+  { id: "clearport", label: "ClearPort OTC", tier: "source", x: 30, y: 250 },
+  { id: "ext-reports", label: "Market Participant Reports", tier: "source", x: 30, y: 320 },
+  { id: "snowflake", label: "Snowflake Data Warehouse", tier: "source", x: 30, y: 390 },
+  { id: "matching", label: "Trade Matching Engine", tier: "processing", x: 280, y: 55 },
+  { id: "span", label: "SPAN Margin Engine", tier: "processing", x: 280, y: 130 },
+  { id: "settlement", label: "Settlement Price Engine", tier: "processing", x: 280, y: 205 },
+  { id: "position-agg", label: "Position Aggregation", tier: "processing", x: 280, y: 280 },
+  { id: "normalization", label: "Data Normalization", tier: "processing", x: 280, y: 355 },
+  { id: "gcp", label: "Google Cloud Platform", tier: "processing", x: 280, y: 430 },
+  { id: "cftc-17", label: "CFTC Part 17 Report", tier: "regulatory", x: 530, y: 55 },
+  { id: "sdr", label: "CME SDR Repository", tier: "regulatory", x: 530, y: 130 },
+  { id: "fcm-seg", label: "FCM Segregation Report", tier: "regulatory", x: 530, y: 205 },
+  { id: "cm-capital", label: "Clearing Member Capital", tier: "regulatory", x: 530, y: 280 },
+  { id: "clearing-rev", label: "Clearing Revenue ($4.99B)", tier: "financial", x: 780, y: 80 },
+  { id: "mktdata-rev", label: "Market Data Revenue ($710M)", tier: "financial", x: 780, y: 180 },
+  { id: "total-rev", label: "Total Revenue ($6.13B)", tier: "financial", x: 780, y: 280 },
+  { id: "datamine", label: "CME DataMine", tier: "analytics", x: 530, y: 370 },
+  { id: "fedwatch", label: "FedWatch API", tier: "analytics", x: 530, y: 440 },
 ];
 
 const edges: Edge[] = [
@@ -89,9 +87,9 @@ const edgeColors: Record<string, string> = {
 };
 
 const alerts = [
-  { type: "amber", text: "BrokerTec U.S. Treasury repo rate schema bump detected — affects 3 downstream settlement feeds." },
-  { type: "red", text: "CFTC Part 17 large trader report — 2 position records missing upstream linkage." },
-  { type: "emerald", text: "Google Cloud migration: CME Clearing margin engine pipeline registered 4 new data assets." },
+  { type: "amber" as const, text: "BrokerTec U.S. Treasury repo rate schema bump detected — affects 3 downstream settlement feeds." },
+  { type: "red" as const, text: "CFTC Part 17 large trader report — 2 position records missing upstream linkage." },
+  { type: "emerald" as const, text: "Google Cloud migration: CME Clearing margin engine pipeline registered 4 new data assets." },
 ];
 
 const alertColorMap: Record<string, string> = {
@@ -99,6 +97,9 @@ const alertColorMap: Record<string, string> = {
   red: "border-cme-red bg-cme-red/5",
   emerald: "border-cme-emerald bg-cme-emerald/5",
 };
+
+const CANVAS_W = 980;
+const CANVAS_H = 500;
 
 const LineageMapPage = () => {
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
@@ -111,8 +112,7 @@ const LineageMapPage = () => {
       ])
     : null;
 
-  const svgWidth = 920;
-  const svgHeight = 560;
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
   return (
     <div className="h-full flex flex-col animate-fade-in">
@@ -123,62 +123,71 @@ const LineageMapPage = () => {
         </span>
       </div>
 
-      <div className="flex-1 relative overflow-hidden">
-        {/* SVG Graph */}
-        <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="absolute inset-0">
-          <defs>
-            {Object.entries(edgeColors).map(([type, color]) => (
-              <marker key={type} id={`arrow-${type}`} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                <polygon points="0 0, 8 3, 0 6" fill={color} opacity="0.7" />
-              </marker>
-            ))}
-          </defs>
-          {/* Edges */}
-          {edges.map((edge, i) => {
-            const fromNode = nodes.find(n => n.id === edge.from)!;
-            const toNode = nodes.find(n => n.id === edge.to)!;
-            const dimmed = connectedNodes && (!connectedNodes.has(edge.from) || !connectedNodes.has(edge.to));
+      <div className="flex-1 overflow-auto relative">
+        {/* Fixed-size canvas so SVG and HTML align */}
+        <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H, minWidth: CANVAS_W, minHeight: CANVAS_H, margin: "16px auto" }}>
+          {/* SVG edges layer */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={CANVAS_W}
+            height={CANVAS_H}
+          >
+            <defs>
+              {Object.entries(edgeColors).map(([type, color]) => (
+                <marker key={type} id={`arrow-${type}`} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                  <polygon points="0 0, 8 3, 0 6" fill={color} opacity="0.7" />
+                </marker>
+              ))}
+            </defs>
+            {edges.map((edge, i) => {
+              const from = nodeMap.get(edge.from)!;
+              const to = nodeMap.get(edge.to)!;
+              const dimmed = connectedNodes && (!connectedNodes.has(edge.from) || !connectedNodes.has(edge.to));
+              const x1 = from.x + NODE_W;
+              const y1 = from.y + NODE_H / 2;
+              const x2 = to.x;
+              const y2 = to.y + NODE_H / 2;
+              const cx1 = x1 + (x2 - x1) * 0.4;
+              const cx2 = x1 + (x2 - x1) * 0.6;
+              return (
+                <path
+                  key={i}
+                  d={`M ${x1} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${x2} ${y2}`}
+                  fill="none"
+                  stroke={edgeColors[edge.type]}
+                  strokeWidth={edge.type === "realtime" ? 1.8 : 1.3}
+                  strokeDasharray={edge.type === "migration" ? "6 4" : edge.type === "drift" ? "4 3" : "none"}
+                  opacity={dimmed ? 0.08 : 0.55}
+                  markerEnd={`url(#arrow-${edge.type})`}
+                  className="transition-opacity duration-200"
+                />
+              );
+            })}
+          </svg>
+
+          {/* HTML nodes layer */}
+          {nodes.map((node) => {
+            const config = tierConfig[node.tier];
+            const Icon = config.icon;
+            const dimmed = connectedNodes && !connectedNodes.has(node.id);
             return (
-              <line
-                key={i}
-                x1={fromNode.x + 100}
-                y1={fromNode.y + 16}
-                x2={toNode.x}
-                y2={toNode.y + 16}
-                stroke={edgeColors[edge.type]}
-                strokeWidth={edge.type === "realtime" ? 2 : 1.5}
-                strokeDasharray={edge.type === "migration" ? "6 4" : edge.type === "drift" ? "4 3" : "none"}
-                opacity={dimmed ? 0.1 : 0.6}
-                markerEnd={`url(#arrow-${edge.type})`}
-                className="transition-opacity duration-200"
-              />
+              <button
+                key={node.id}
+                className={`absolute flex items-center gap-1.5 px-2.5 border text-[9px] font-mono font-medium ${config.shape} ${config.color} transition-all duration-200 hover:scale-105 cursor-pointer ${dimmed ? "opacity-10" : "opacity-100"}`}
+                style={{ left: node.x, top: node.y, width: NODE_W, height: NODE_H }}
+                onClick={() => setSelectedNode(node.id)}
+                onMouseEnter={() => setHoveredNode(node.id)}
+                onMouseLeave={() => setHoveredNode(null)}
+              >
+                <Icon className="w-3 h-3 shrink-0" />
+                <span className="truncate">{node.label}</span>
+              </button>
             );
           })}
-        </svg>
+        </div>
 
-        {/* Nodes */}
-        {nodes.map((node) => {
-          const config = tierConfig[node.tier];
-          const Icon = config.icon;
-          const dimmed = connectedNodes && !connectedNodes.has(node.id);
-          return (
-            <motion.button
-              key={node.id}
-              className={`absolute flex items-center gap-1.5 px-2 py-1.5 border text-[9px] font-mono font-medium ${config.shape} ${config.color} transition-all duration-200 hover:scale-105 ${dimmed ? "opacity-15" : "opacity-100"}`}
-              style={{ left: node.x, top: node.y, maxWidth: 180 }}
-              onClick={() => setSelectedNode(node.id)}
-              onMouseEnter={() => setHoveredNode(node.id)}
-              onMouseLeave={() => setHoveredNode(null)}
-              whileHover={{ scale: 1.05 }}
-            >
-              <Icon className="w-3 h-3 shrink-0" />
-              <span className="truncate">{node.label}</span>
-            </motion.button>
-          );
-        })}
-
-        {/* Alerts */}
-        <div className="absolute top-3 right-3 w-72 space-y-2">
+        {/* Alerts overlay */}
+        <div className="absolute top-3 right-3 w-72 space-y-2 z-10">
           {alerts.map((alert, i) => (
             <motion.div
               key={i}
@@ -194,7 +203,7 @@ const LineageMapPage = () => {
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-3 left-3 bg-card/90 border border-border rounded p-2 flex flex-wrap gap-3">
+        <div className="absolute bottom-3 left-3 bg-card/90 border border-border rounded p-2 flex flex-wrap gap-3 z-10">
           {[
             { label: "Real-time Flow", color: "#0891ff" },
             { label: "Compliance", color: "#d4a843" },
@@ -210,10 +219,10 @@ const LineageMapPage = () => {
         </div>
 
         {/* Minimap */}
-        <div className="absolute bottom-3 right-3 w-28 h-20 bg-card/80 border border-border rounded overflow-hidden">
-          <svg width="100%" height="100%" viewBox={`0 0 ${svgWidth} ${svgHeight}`}>
+        <div className="absolute bottom-3 right-3 w-28 h-16 bg-card/80 border border-border rounded overflow-hidden z-10">
+          <svg width="100%" height="100%" viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`} preserveAspectRatio="xMidYMid meet">
             {nodes.map((node) => (
-              <rect key={node.id} x={node.x} y={node.y} width={8} height={4} fill={edgeColors.realtime} opacity={0.5} rx={1} />
+              <rect key={node.id} x={node.x} y={node.y} width={12} height={5} fill={edgeColors.realtime} opacity={0.5} rx={1} />
             ))}
           </svg>
         </div>
